@@ -2,7 +2,7 @@ import requests, re
 
 
 def save_each_song_on_next_line(input_file_name, output_file_name):
-    print("saving each song on different line")
+    print("\nSaving each song on different line")
     # Define the regular expression pattern
     pattern = r'\{"id":"[a-zA-Z0-9_-]{8}","title":'
 
@@ -18,12 +18,11 @@ def save_each_song_on_next_line(input_file_name, output_file_name):
                 line = line.replace(match, '\n\n' + match)
             output.append(line)
 
-    # Write the modified data back to the file
-    with open(output_file_name, 'w', encoding='utf-8') as file:
-        file.writelines(output)
+    # Write the modified data to the output file
+    save_file(output, output_file_name)
 
-    print("Processing complete.")
-    print(count)
+    print("Each song saved on next line and content written to", output_file_name)
+    print("Total number of songs found", count)
 
 
 def remove_newlines(input_file, output_file):
@@ -52,7 +51,7 @@ def construct_url_jiosaavn():
 def save_file(content, file_name): 
     try:
         with open(file_name, 'w', encoding='utf-8') as file:
-            file.write(content)
+            file.writelines(content)
         print(f"Content saved successfully to {file_name}")
     except Exception as e:
         print(f"Error occurred while saving content to {file_name}: {str(e)}")
@@ -63,6 +62,7 @@ def main():
     response = requests.get(request_url) # get the playlist
     save_file(response.text, "PlaylistJson.txt") 
     remove_newlines("PlaylistJson.txt", "RemovedNextLines.txt")
+    save_each_song_on_next_line("RemovedNextLines.txt", "EachSongOnNextLine.txt")
 
 if __name__ == "__main__":
     main()
