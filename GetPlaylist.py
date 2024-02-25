@@ -1,5 +1,26 @@
-import requests, re
+import requests, re, json
 
+def create_playlist_file(input_file_name, output_file_name):
+    print("\nSaving the important data in a file")
+    with open(input_file_name, 'r', encoding='utf-8') as input_file:
+        data = json.load(input_file)
+
+    records = []
+
+    for item in data['list']:
+        title = item.get('title','')
+        image = item.get('image','')
+        artists = ', '.join([artist['name'] for artist in item.get('more_info',{}).get('artistMap',{}).get('artists',[])])
+        encrypted_media_url = item.get('more_info', {}).get('encrypted_media_url', '')
+        record_str = json.dumps({'title': title, 'image': image, 'artists': artists, 'encrypted_media_url': encrypted_media_url}) + '\n'
+        records.append(record_str)
+
+    save_file(records, output_file_name)   
+
+def download_songs(input_file):
+    #encrypted_media_url use this
+    url = "https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url={encrypted_media_url}&bitrate=128&api_version=4&_format=json&ctx=wap6dot0&_marker=0"
+    
 
 def save_each_song_on_next_line(input_file_name, output_file_name):
     print("\nSaving each song on different line")
@@ -15,7 +36,7 @@ def save_each_song_on_next_line(input_file_name, output_file_name):
             matches = re.findall(pattern, line)
             for match in matches:
                 count = count + 1
-                line = line.replace(match, '\n\n' + match)
+                line = line.replace(match, '\n' + match)
             output.append(line)
 
     # Write the modified data to the output file
@@ -60,9 +81,10 @@ def main():
     request_url = construct_url_jiosaavn() 
     print("Request URL is " + request_url)
     response = requests.get(request_url) # get the playlist
-    save_file(response.text, "PlaylistJson.txt") 
-    remove_newlines("PlaylistJson.txt", "RemovedNextLines.txt")
+    save_file(response.text, "ResponsePlaylistJson.txt") 
+    remove_newlines("ResponsePlaylistJson.txt", "RemovedNextLines.txt")
     save_each_song_on_next_line("RemovedNextLines.txt", "EachSongOnNextLine.txt")
+    create_playlist_file("EachSongOnNextLine.txt", "Playlist.txt")
 
 if __name__ == "__main__":
     main()
