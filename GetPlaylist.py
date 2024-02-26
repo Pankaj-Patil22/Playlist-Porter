@@ -12,8 +12,11 @@ def create_playlist_file(input_file_name, output_file_name):
         title = item.get('title','')
         image = item.get('image','')
         artists = ', '.join([artist['name'] for artist in item.get('more_info',{}).get('artistMap',{}).get('artists',[])])
+        album = item.get('more_info', {}).get('album', '')
+        label = item.get('more_info', {}).get('label', '')
+        language = item.get('language', '')
         encrypted_media_url = item.get('more_info', {}).get('encrypted_media_url', '')
-        record_str = json.dumps({'title': title, 'image': image, 'artists': artists, 'encrypted_media_url': encrypted_media_url}) + '\n'
+        record_str = json.dumps({'title': title, 'image': image, 'artists': artists, 'encrypted_media_url': encrypted_media_url, 'album': album, 'label': label, 'language': language}) + '\n'
         records.append(record_str)
 
     save_file(records, output_file_name)   
