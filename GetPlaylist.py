@@ -45,10 +45,17 @@ def write_metadata(cover_art, artists, album, label, mp4_file):
 # Get the auth url
 def get_auth_url(encrypted_media_url, is320kbps):
     bitrate = '320' if is320kbps else '128'
+    print("Encrypted url", encrypted_media_url)
     encrypted_media_url = urllib.parse.quote(encrypted_media_url)
     url = "https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url={}&bitrate={}&api_version=4&_format=json&ctx=web6dot0&_marker=0".format(encrypted_media_url, bitrate)
     
     return requests.get(url)
+
+def sanitize_name(name):
+    unwanted_chars = r'\/:*?"<>|'  # Unwanted characters to remove
+    for char in unwanted_chars:
+        name = name.replace(char, '')  # Replace unwanted character with an empty string
+    return name
 
 def download_song(input_file):
     with open(input_file, 'r') as file:
