@@ -1,4 +1,4 @@
-import requests, json, urllib.parse
+import requests, json, urllib.parse, os
 from mutagen.mp4 import MP4, MP4Cover
 
 TOTAL_SONGS = 1
@@ -71,14 +71,27 @@ def sanitize_name(name):
     return name
 
 def fix_file_name(name):
-    if '\u2019' in name or '&quot;' in name:
-        name = name.replace('\u2019',"'")
+    quotes = ['\u2019','&quot;','&#039;']
+    for quote in quotes:
+        if quote in name:
+            name = name.replace(quote, "'")
     return name
 
 def get_song_name(name):
     file_name = fix_file_name(name+'.mp4')
     file_name = sanitize_name(file_name)
     return 'songs/'+file_name
+
+def generate_unique_file_name(base_name, existing_file_names):
+    if base_name not in existing_file_names:
+        return get_song_name(base_name)
+    
+    # If the base name already exists, find a unique name by adding a numeric suffix
+    suffix = 1
+    while f"{base_name}{suffix}" in existing_file_names:
+        suffix += 1
+    
+    return get_song_name(f"{base_name}{suffix}")
 
 def download_song(input_file):
     with open(input_file, 'r') as file:
@@ -96,21 +109,21 @@ def download_song(input_file):
 
             auth_response = requests.get(auth_url)
             if auth_response.status_code == 200:
-                file_name = get_song_name(item['title'])
+                file_name = generate_unique_file_name(item['title'],songs_downloaded)
                 with open(file_name,'wb') as mp4:
                     mp4.write(auth_response.content)
 
                 mp4_file = MP4(file_name)
                 write_metadata(cover_art.content, item['primary_artists'], item['featured_artists'], item['artists'], item['album'], item['label'], item['title'], mp4_file)
-                songs_downloaded.append(item['title'])
+                songs_downloaded.append(file_name + '\n')
                 count = count + 1
                 print('File name', file_name, 'Count', count)
             else:
-                songs_not_downloaded.append(item['title'])
+                songs_not_downloaded.append(item['title'] + '\n')
                 print("Error fetching data from auth URL:", auth_response.status_code)
         except:
             print('could not download this song', item['title'])
-            songs_not_downloaded.append(item['title'])
+            songs_not_downloaded.append(item['title'] + '\n' )
 
     if count == TOTAL_SONGS:
         print("\nDownloading Songs Successful. Total songs downloaded", count)
@@ -120,6 +133,31 @@ def download_song(input_file):
         Exception("Failed to download all the songs")
         save_file(songs_downloaded, 'songs_downloaded.txt')
         save_file(songs_not_downloaded, 'songs_not_downloaded.txt')
+
+def verify_downloads(input_file):
+    with open(input_file, 'r') as file:
+        intended_downloads = file.read()
+
+    downloaded_song_count = 0
+    songs_downloaded = []
+    songs_not_downloaded = []
+
+    downloaded_files = os.listdir("songs")
+
+    for title in intended_downloads:
+        file_name = title.replace('songs/','')
+        if file_name in downloaded_files:
+            downloaded_song_count += 1
+            songs_downloaded.append(title + '\n')
+        else:
+            songs_not_downloaded.append(title)
+
+    print("Total songs downloaded", downloaded_song_count)
+    save_file(songs_downloaded,'songs_downloaded_verify.txt')
+    save_file(songs_not_downloaded,'songs_not_downloaded_verify.txt')
+
+    if downloaded_song_count < TOTAL_SONGS:
+        print("All songs not downloaded")
 
 # to remove the newline characters which are present not needed in response and make the json valid. 
 def remove_newlines(input_file, output_file):
@@ -161,6 +199,7 @@ def main():
     remove_newlines("ResponsePlaylistJson.txt", "RemovedNextLines.txt")
     create_playlist_file("RemovedNextLines.txt", "Playlist.txt")
     download_song('Playlist.txt')
+    verify_downloads('songs_downloaded.txt')
 
 if __name__ == "__main__":
     main()
