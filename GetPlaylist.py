@@ -38,16 +38,15 @@ def create_playlist_file(input_file_name, output_file_name):
     save_file([json.dumps(records)], output_file_name)  
     print("\nImportant Information Saved")
 
-# Add metadata to the MP4 file
-def write_metadata(cover_art, primary_artists, featured_artists, artists, album, label, mp4_file):
-    mp4_file['\xa9ART'] = ["Primary Artist"]  # Primary artist
-    mp4_file['aART'] = ["Featured Artist"]  # Featured artist
-    mp4_file['\xa9wrt'] = artists # Add artist names
-    mp4_file['\xa9alb'] = album # Add album name
-    mp4_file['\xa9grp'] = label  # Add label information
-
-    # Load album art image file
+# Add mp4_file to the MP4 file
+def write_metadata(cover_art, primary_artists, featured_artists, artists, album, label, title, mp4_file):
+    mp4_file['\xa9ART'] = primary_artists  # Primary artist
+    mp4_file['aART'] = featured_artists  # Featured artist
+    mp4_file['\xa9grp'] = label # Add label information
+    mp4_file['\xa9wrt'] = primary_artists + ', '+ featured_artists + ', ' + artists  # All artists
     mp4_file['covr'] = [MP4Cover(cover_art)]
+    mp4_file['\xa9alb'] = album # Add album info
+    mp4_file['\xa9nam'] = title # Add title
     mp4_file.save()
 
 # Get the auth url
@@ -102,7 +101,7 @@ def download_song(input_file):
                     mp4.write(auth_response.content)
 
                 mp4_file = MP4(file_name)
-                write_metadata(cover_art.content, item['artists'], item['album'], item['label'], mp4_file)
+                write_metadata(cover_art.content, item['primary_artists'], item['featured_artists'], item['artists'], item['album'], item['label'], item['title'], mp4_file)
                 songs_downloaded.append(item['title'])
                 count = count + 1
                 print('File name', file_name, 'Count', count)
