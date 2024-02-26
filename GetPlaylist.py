@@ -15,7 +15,6 @@ def create_playlist_file(input_file_name, output_file_name):
         artists = ', '.join([artist['name'] for artist in item.get('more_info',{}).get('artistMap',{}).get('artists',[])])
         album = item.get('more_info', {}).get('album', '')
         label = item.get('more_info', {}).get('label', '')
-        language = item.get('language', '')
         bitrate = item.get('more_info', {}).get('320kbps', '')
         encrypted_media_url = item.get('more_info', {}).get('encrypted_media_url', '')
 
@@ -33,22 +32,33 @@ def create_playlist_file(input_file_name, output_file_name):
     save_file([json.dumps(records)], output_file_name)  
     print("\nImportant Information Saved")
 
+def write_metadata(cover_art, artists, album, label, mp4_file):
+    # Add metadata to the MP4 file
+    mp4_file['\xa9ART'] = artists # Add artist names
+    mp4_file['\xa9alb'] = album # Add album name
+    mp4_file['\xa9grp'] = label  # Add label information
+
+    # Load album art image file
+    mp4_file['covr'] = [MP4Cover(cover_art)]
+    mp4_file.save()
+
 def download_song(input_file):
     # Read the JSON data from the file
     with open(input_file, 'r') as file:
         playlist_data = json.load(file)
 
     count = 0
+
      # Iterate through each item in the playlist
     for item in playlist_data['playlist']:
+
         #Get the Cover art
-        response_cover = requests.get(item['image'])
+        cover_art = requests.get(item['image'])
         
         # Determine the bitrate
         bitrate = '320' if item['320kbps'] == 'true' else '128'
         
         encrypted_media_url = urllib.parse.quote(item['encrypted_media_url'])
-        print(encrypted_media_url)
         # Replace placeholders in the URL
         url = "https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url={}&bitrate={}&api_version=4&_format=json&ctx=web6dot0&_marker=0".format(encrypted_media_url, bitrate)
        
@@ -70,16 +80,8 @@ def download_song(input_file):
                 with open(file_name,'wb') as mp4:
                     mp4.write(auth_response.content)
 
-                # Add metadata to the MP4 file
-                metadata = MP4(file_name)
-                metadata['\xa9ART'] = item['artists'] # Add artist names
-                metadata['\xa9alb'] = item['album'] # Add album name
-                metadata['\xa9grp'] = item['label']  # Add label information
-
-                # Add album art
-                # Load album art image file
-                metadata['covr'] = [MP4Cover(response_cover.content)]
-                metadata.save()
+                mp4_file = MP4(file_name)
+                write_metadata(cover_art.content, item['artists'], item['album'], item['label'], mp4_file)
             else:
                 print("Error fetching data from auth URL:", auth_response.status_code)
         else:
