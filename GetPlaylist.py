@@ -32,8 +32,8 @@ def create_playlist_file(input_file_name, output_file_name):
     save_file([json.dumps(records)], output_file_name)  
     print("\nImportant Information Saved")
 
+# Add metadata to the MP4 file
 def write_metadata(cover_art, artists, album, label, mp4_file):
-    # Add metadata to the MP4 file
     mp4_file['\xa9ART'] = artists # Add artist names
     mp4_file['\xa9alb'] = album # Add album name
     mp4_file['\xa9grp'] = label  # Add label information
@@ -42,36 +42,29 @@ def write_metadata(cover_art, artists, album, label, mp4_file):
     mp4_file['covr'] = [MP4Cover(cover_art)]
     mp4_file.save()
 
+# Get the auth url
+def get_auth_url(encrypted_media_url, is320kbps):
+    bitrate = '320' if is320kbps else '128'
+    encrypted_media_url = urllib.parse.quote(encrypted_media_url)
+    url = "https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url={}&bitrate={}&api_version=4&_format=json&ctx=web6dot0&_marker=0".format(encrypted_media_url, bitrate)
+    
+    return requests.get(url)
+
 def download_song(input_file):
-    # Read the JSON data from the file
     with open(input_file, 'r') as file:
         playlist_data = json.load(file)
 
     count = 0
 
-     # Iterate through each item in the playlist
     for item in playlist_data['playlist']:
-
-        #Get the Cover art
         cover_art = requests.get(item['image'])
         
-        # Determine the bitrate
-        bitrate = '320' if item['320kbps'] == 'true' else '128'
-        
-        encrypted_media_url = urllib.parse.quote(item['encrypted_media_url'])
-        # Replace placeholders in the URL
-        url = "https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url={}&bitrate={}&api_version=4&_format=json&ctx=web6dot0&_marker=0".format(encrypted_media_url, bitrate)
-       
-        # Send the request
-        response = requests.get(url)
+        auth_response = get_auth_url(item['encrypted_media_url'], item['320kbps'])
 
-        # Process the response
-        if response.status_code == 200:
-            # Extract and print the response data
-            data = response.json()
+        if auth_response.status_code == 200:
+            data = auth_response.json()
             auth_url = data.get('auth_url')
             auth_url = auth_url.replace('\\','')
-            # Send a GET request to the auth_url
             auth_response = requests.get(auth_url)
             if auth_response.status_code == 200:
                 count = count + 1
@@ -85,7 +78,7 @@ def download_song(input_file):
             else:
                 print("Error fetching data from auth URL:", auth_response.status_code)
         else:
-            print("Error:", response.status_code)  
+            print("Error:", auth_response.status_code)  
     print("\nDownloading Songs Successful. Total songs downloaded", count)
 
 
