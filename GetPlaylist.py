@@ -50,7 +50,14 @@ def get_auth_url(encrypted_media_url, is320kbps):
     encrypted_media_url = urllib.parse.quote(encrypted_media_url)
     url = "https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url={}&bitrate={}&api_version=4&_format=json&ctx=web6dot0&_marker=0".format(encrypted_media_url, bitrate)
     
-    return requests.get(url)
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        data = response.json()
+        auth_url = data.get('auth_url')
+        return auth_url.replace('\\','')
+    else: 
+        print("Some error occured while getting auth_url")
 
 def sanitize_name(name):
     unwanted_chars = r'\/:*?"<>|'  # Unwanted characters to remove
@@ -68,28 +75,22 @@ def download_song(input_file):
     for item in playlist_data['playlist']:
         cover_art = requests.get(item['image'])
         
-        auth_response = get_auth_url(item['encrypted_media_url'], item['320kbps'])
+        auth_url = get_auth_url(item['encrypted_media_url'], item['320kbps'])
 
+        auth_response = requests.get(auth_url)
         if auth_response.status_code == 200:
-            data = auth_response.json()
-            auth_url = data.get('auth_url')
-            auth_url = auth_url.replace('\\','')
-            auth_response = requests.get(auth_url)
-            if auth_response.status_code == 200:
-                file_name = sanitize_name(item['title']+'.mp4')
-                file_name = 'songs/'+file_name
-                with open(file_name,'wb') as mp4:
-                    mp4.write(auth_response.content)
+            file_name = sanitize_name(item['title']+'.mp4')
+            file_name = 'songs/'+file_name
+            with open(file_name,'wb') as mp4:
+                mp4.write(auth_response.content)
 
-                mp4_file = MP4(file_name)
-                write_metadata(cover_art.content, item['artists'], item['album'], item['label'], mp4_file)
-                songs_downloaded.append(file_name)
-                count = count + 1
-                print('File name', file_name, 'Count', count)
-            else:
-                print("Error fetching data from auth URL:", auth_response.status_code)
+            mp4_file = MP4(file_name)
+            write_metadata(cover_art.content, item['artists'], item['album'], item['label'], mp4_file)
+            songs_downloaded.append(file_name)
+            count = count + 1
+            print('File name', file_name, 'Count', count)
         else:
-            print("Error:", auth_response.status_code)  
+            print("Error fetching data from auth URL:", auth_response.status_code)
 
     if count == TOTAL_SONGS:
         print("\nDownloading Songs Successful. Total songs downloaded", count)
