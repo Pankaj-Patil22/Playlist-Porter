@@ -15,6 +15,8 @@ def create_playlist_file(input_file_name, output_file_name):
         title = item.get('title','')
         image = item.get('image','')
         artists = ', '.join([artist['name'] for artist in item.get('more_info',{}).get('artistMap',{}).get('artists',[])])
+        primary_artists = '. '.join([primary_artist['name'] for primary_artist in item.get('more_info',{}).get('artistMap',{}).get('primary_artists',[])])
+        featured_artists = '. '.join([featured_artist['name'] for featured_artist in item.get('more_info',{}).get('artistMap',{}).get('featured_artists',[])])
         album = item.get('more_info', {}).get('album', '')
         label = item.get('more_info', {}).get('label', '')
         bitrate = item.get('more_info', {}).get('320kbps', '')
@@ -24,6 +26,8 @@ def create_playlist_file(input_file_name, output_file_name):
             'title': title,
             'image': image,
             'artists': artists,
+            'primary_artists': primary_artists,
+            'featured_artists': featured_artists,
             'album': album,
             'label': label,
             '320kbps': bitrate,
@@ -35,8 +39,10 @@ def create_playlist_file(input_file_name, output_file_name):
     print("\nImportant Information Saved")
 
 # Add metadata to the MP4 file
-def write_metadata(cover_art, artists, album, label, mp4_file):
-    mp4_file['\xa9ART'] = artists # Add artist names
+def write_metadata(cover_art, primary_artists, featured_artists, artists, album, label, mp4_file):
+    mp4_file['\xa9ART'] = ["Primary Artist"]  # Primary artist
+    mp4_file['aART'] = ["Featured Artist"]  # Featured artist
+    mp4_file['\xa9wrt'] = artists # Add artist names
     mp4_file['\xa9alb'] = album # Add album name
     mp4_file['\xa9grp'] = label  # Add label information
 
@@ -62,8 +68,18 @@ def get_auth_url(encrypted_media_url, is320kbps):
 def sanitize_name(name):
     unwanted_chars = r'\/:*?"<>|'  # Unwanted characters to remove
     for char in unwanted_chars:
-        name = name.replace(char, '')  # Replace unwanted character with an empty string
+        name = name.replace(char, '')
     return name
+
+def fix_file_name(name):
+    if '\u2019' in name or '&quot;' in name:
+        name = name.replace('\u2019',"'")
+    return name
+
+def get_song_name(name):
+    file_name = fix_file_name(name+'.mp4')
+    file_name = sanitize_name(file_name)
+    return 'songs/'+file_name
 
 def download_song(input_file):
     with open(input_file, 'r') as file:
@@ -71,32 +87,40 @@ def download_song(input_file):
 
     count = 0
     songs_downloaded = []
+    songs_not_downloaded = []
 
     for item in playlist_data['playlist']:
-        cover_art = requests.get(item['image'])
-        
-        auth_url = get_auth_url(item['encrypted_media_url'], item['320kbps'])
+        try: 
+            cover_art = requests.get(item['image'])
+            
+            auth_url = get_auth_url(item['encrypted_media_url'], item['320kbps'])
 
-        auth_response = requests.get(auth_url)
-        if auth_response.status_code == 200:
-            file_name = sanitize_name(item['title']+'.mp4')
-            file_name = 'songs/'+file_name
-            with open(file_name,'wb') as mp4:
-                mp4.write(auth_response.content)
+            auth_response = requests.get(auth_url)
+            if auth_response.status_code == 200:
+                file_name = get_song_name(item['title'])
+                with open(file_name,'wb') as mp4:
+                    mp4.write(auth_response.content)
 
-            mp4_file = MP4(file_name)
-            write_metadata(cover_art.content, item['artists'], item['album'], item['label'], mp4_file)
-            songs_downloaded.append(file_name)
-            count = count + 1
-            print('File name', file_name, 'Count', count)
-        else:
-            print("Error fetching data from auth URL:", auth_response.status_code)
+                mp4_file = MP4(file_name)
+                write_metadata(cover_art.content, item['artists'], item['album'], item['label'], mp4_file)
+                songs_downloaded.append(item['title'])
+                count = count + 1
+                print('File name', file_name, 'Count', count)
+            else:
+                songs_not_downloaded.append(item['title'])
+                print("Error fetching data from auth URL:", auth_response.status_code)
+        except:
+            print('could not download this song', item['title'])
+            songs_not_downloaded.append(item['title'])
 
     if count == TOTAL_SONGS:
         print("\nDownloading Songs Successful. Total songs downloaded", count)
         save_file(songs_downloaded, 'songs_downloaded.txt')
+        save_file(songs_not_downloaded, 'songs_not_downloaded.txt')
     else:
         Exception("Failed to download all the songs")
+        save_file(songs_downloaded, 'songs_downloaded.txt')
+        save_file(songs_not_downloaded, 'songs_not_downloaded.txt')
 
 # to remove the newline characters which are present not needed in response and make the json valid. 
 def remove_newlines(input_file, output_file):
