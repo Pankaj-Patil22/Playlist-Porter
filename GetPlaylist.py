@@ -1,6 +1,8 @@
 import requests, json, urllib.parse
 from mutagen.mp4 import MP4, MP4Cover
 
+TOTAL_SONGS = 1
+
 # only save the important data
 def create_playlist_file(input_file_name, output_file_name):
     print("\nSaving the important data in a file")
@@ -45,7 +47,6 @@ def write_metadata(cover_art, artists, album, label, mp4_file):
 # Get the auth url
 def get_auth_url(encrypted_media_url, is320kbps):
     bitrate = '320' if is320kbps else '128'
-    print("Encrypted url", encrypted_media_url)
     encrypted_media_url = urllib.parse.quote(encrypted_media_url)
     url = "https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url={}&bitrate={}&api_version=4&_format=json&ctx=web6dot0&_marker=0".format(encrypted_media_url, bitrate)
     
@@ -62,6 +63,7 @@ def download_song(input_file):
         playlist_data = json.load(file)
 
     count = 0
+    songs_downloaded = []
 
     for item in playlist_data['playlist']:
         cover_art = requests.get(item['image'])
@@ -74,20 +76,26 @@ def download_song(input_file):
             auth_url = auth_url.replace('\\','')
             auth_response = requests.get(auth_url)
             if auth_response.status_code == 200:
-                count = count + 1
-                print("Successfully fetched song from auth URL")
-                file_name = 'songs/'+item['title']+'.mp4'
+                file_name = sanitize_name(item['title']+'.mp4')
+                file_name = 'songs/'+file_name
                 with open(file_name,'wb') as mp4:
                     mp4.write(auth_response.content)
 
                 mp4_file = MP4(file_name)
                 write_metadata(cover_art.content, item['artists'], item['album'], item['label'], mp4_file)
+                songs_downloaded.append(file_name)
+                count = count + 1
+                print('File name', file_name, 'Count', count)
             else:
                 print("Error fetching data from auth URL:", auth_response.status_code)
         else:
             print("Error:", auth_response.status_code)  
-    print("\nDownloading Songs Successful. Total songs downloaded", count)
 
+    if count == TOTAL_SONGS:
+        print("\nDownloading Songs Successful. Total songs downloaded", count)
+        save_file(songs_downloaded, 'songs_downloaded.txt')
+    else:
+        Exception("Failed to download all the songs")
 
 # to remove the newline characters which are present not needed in response and make the json valid. 
 def remove_newlines(input_file, output_file):
@@ -108,8 +116,8 @@ def construct_url_jiosaavn():
     playlist_url = input("Enter your playlist URL\n")
     token_value = playlist_url.split('/')[-1]
     pagination_value = 1
-    total_songs = input("Enter total number of songs in your playlist\n")
-    total_songs_value = int(total_songs) + 100
+    TOTAL_SONGS = int(input("Enter total number of songs in your playlist\n"))
+    total_songs_value = TOTAL_SONGS + 100
     print("Constructing URL")
     return request_template.format(token=token_value, pagination=pagination_value, total_songs=total_songs_value)
 
