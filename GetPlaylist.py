@@ -1,4 +1,5 @@
-import requests, json
+import requests, json, urllib.parse
+from mutagen.mp4 import MP4, MP4Cover
 
 # only save the important data
 def create_playlist_file(input_file_name, output_file_name):
@@ -6,7 +7,7 @@ def create_playlist_file(input_file_name, output_file_name):
     with open(input_file_name, 'r', encoding='utf-8') as input_file:
         data = json.load(input_file)
 
-    records = []
+    records = {"playlist": []}
 
     for item in data['list']:
         title = item.get('title','')
@@ -15,15 +16,75 @@ def create_playlist_file(input_file_name, output_file_name):
         album = item.get('more_info', {}).get('album', '')
         label = item.get('more_info', {}).get('label', '')
         language = item.get('language', '')
+        bitrate = item.get('more_info', {}).get('320kbps', '')
         encrypted_media_url = item.get('more_info', {}).get('encrypted_media_url', '')
-        record_str = json.dumps({'title': title, 'image': image, 'artists': artists, 'encrypted_media_url': encrypted_media_url, 'album': album, 'label': label, 'language': language}) + '\n'
-        records.append(record_str)
 
-    save_file(records, output_file_name)   
+        record = {
+            'title': title,
+            'image': image,
+            'artists': artists,
+            'album': album,
+            'label': label,
+            '320kbps': bitrate,
+            'encrypted_media_url': encrypted_media_url
+        }
+        records["playlist"].append(record)
+
+    save_file([json.dumps(records)], output_file_name)  
+    print("\nImportant Information Saved")
 
 def download_song(input_file):
-    #encrypted_media_url use this
-    url = "https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url={encrypted_media_url}&bitrate=128&api_version=4&_format=json&ctx=wap6dot0&_marker=0"
+    # Read the JSON data from the file
+    with open(input_file, 'r') as file:
+        playlist_data = json.load(file)
+
+    count = 0
+     # Iterate through each item in the playlist
+    for item in playlist_data['playlist']:
+        #Get the Cover art
+        response_cover = requests.get(item['image'])
+        
+        # Determine the bitrate
+        bitrate = '320' if item['320kbps'] == 'true' else '128'
+        
+        encrypted_media_url = urllib.parse.quote(item['encrypted_media_url'])
+        print(encrypted_media_url)
+        # Replace placeholders in the URL
+        url = "https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url={}&bitrate={}&api_version=4&_format=json&ctx=web6dot0&_marker=0".format(encrypted_media_url, bitrate)
+       
+        # Send the request
+        response = requests.get(url)
+
+        # Process the response
+        if response.status_code == 200:
+            # Extract and print the response data
+            data = response.json()
+            auth_url = data.get('auth_url')
+            auth_url = auth_url.replace('\\','')
+            # Send a GET request to the auth_url
+            auth_response = requests.get(auth_url)
+            if auth_response.status_code == 200:
+                count = count + 1
+                print("Successfully fetched song from auth URL")
+                file_name = 'songs/'+item['title']+'.mp4'
+                with open(file_name,'wb') as mp4:
+                    mp4.write(auth_response.content)
+
+                # Add metadata to the MP4 file
+                metadata = MP4(file_name)
+                metadata['\xa9ART'] = item['artists'] # Add artist names
+                metadata['\xa9alb'] = item['album'] # Add album name
+                metadata['\xa9grp'] = item['label']  # Add label information
+
+                # Add album art
+                # Load album art image file
+                metadata['covr'] = [MP4Cover(response_cover.content)]
+                metadata.save()
+            else:
+                print("Error fetching data from auth URL:", auth_response.status_code)
+        else:
+            print("Error:", response.status_code)  
+    print("\nDownloading Songs Successful. Total songs downloaded", count)
 
 
 # to remove the newline characters which are present not needed in response and make the json valid. 
@@ -65,6 +126,7 @@ def main():
     save_file(response.text, "ResponsePlaylistJson.txt") 
     remove_newlines("ResponsePlaylistJson.txt", "RemovedNextLines.txt")
     create_playlist_file("RemovedNextLines.txt", "Playlist.txt")
+    download_song('Playlist.txt')
 
 if __name__ == "__main__":
     main()
