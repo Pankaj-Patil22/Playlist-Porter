@@ -71,7 +71,7 @@ def sanitize_name(name):
     return name
 
 def fix_file_name(name):
-    quotes = ['\u2019','&quot;','&#039;']
+    quotes = ['\u2019','&quot;','&#039;', '\u2018']
     for quote in quotes:
         if quote in name:
             name = name.replace(quote, "'")
@@ -83,15 +83,13 @@ def get_song_name(name):
     return 'songs/'+file_name
 
 def generate_unique_file_name(base_name, existing_file_names):
-    if base_name not in existing_file_names:
-        return get_song_name(base_name)
-    
-    # If the base name already exists, find a unique name by adding a numeric suffix
     suffix = 1
-    while f"{base_name}{suffix}" in existing_file_names:
-        suffix += 1
+    for file_name in existing_file_names:
+        if base_name in file_name:
+            base_name = base_name + str(suffix)
+            suffix += 1
     
-    return get_song_name(f"{base_name}{suffix}")
+    return get_song_name(base_name)
 
 def download_song(input_file):
     with open(input_file, 'r') as file:
@@ -135,8 +133,8 @@ def download_song(input_file):
         save_file(songs_not_downloaded, 'songs_not_downloaded.txt')
 
 def verify_downloads(input_file):
-    with open(input_file, 'r') as file:
-        intended_downloads = file.read()
+    with open(input_file, 'r', encoding='utf-8') as file:
+        intended_downloads = file.read().splitlines()
 
     downloaded_song_count = 0
     songs_downloaded = []
@@ -148,9 +146,9 @@ def verify_downloads(input_file):
         file_name = title.replace('songs/','')
         if file_name in downloaded_files:
             downloaded_song_count += 1
-            songs_downloaded.append(title + '\n')
+            songs_downloaded.append(file_name + '\n')
         else:
-            songs_not_downloaded.append(title)
+            songs_not_downloaded.append(file_name + '\n')
 
     print("Total songs downloaded", downloaded_song_count)
     save_file(songs_downloaded,'songs_downloaded_verify.txt')
