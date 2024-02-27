@@ -32,43 +32,6 @@ def generate_unique_file_name(base_name, existing_file_names):
     return get_song_name(base_name)
 
 
-# only save the important data
-def create_playlist_file(input_file_name, output_file_name):
-    print("\nSaving the important data in a file")
-    with open(input_file_name, 'r', encoding='utf-8') as input_file:
-        data = json.load(input_file)
-
-    records = {"playlist": []}
-
-    for item in data['list']:
-        title = item.get('title','')
-        image = item.get('image','')
-        artists = ', '.join([artist['name'] for artist in item.get('more_info',{}).get('artistMap',{}).get('artists',[])])
-        primary_artists = '. '.join([primary_artist['name'] for primary_artist in item.get('more_info',{}).get('artistMap',{}).get('primary_artists',[])])
-        featured_artists = '. '.join([featured_artist['name'] for featured_artist in item.get('more_info',{}).get('artistMap',{}).get('featured_artists',[])])
-        album = item.get('more_info', {}).get('album', '')
-        label = item.get('more_info', {}).get('label', '')
-        bitrate = item.get('more_info', {}).get('320kbps', '')
-        encrypted_media_url = item.get('more_info', {}).get('encrypted_media_url', '')
-        language = item.get('language', '')
-
-        record = {
-            'title': title,
-            'image': image,
-            'artists': artists,
-            'primary_artists': primary_artists,
-            'featured_artists': featured_artists,
-            'album': album,
-            'label': label,
-            '320kbps': bitrate,
-            'encrypted_media_url': encrypted_media_url,
-            'language': language
-        }
-        records["playlist"].append(record)
-
-    save_file([json.dumps(records)], output_file_name)  
-    print("\nImportant Information Saved")
-
 # Add mp4_file to the MP4 file
 def write_metadata(cover_art, primary_artists, featured_artists, artists, album, label, title, language, mp3_file):
     mp3_file.tags.add(
@@ -216,8 +179,7 @@ def main():
     print("Request URL is " + request_url)
     response = requests.get(request_url) # get the playlist
     save_file(response.text, "ResponsePlaylistJson.txt") 
-    remove_newlines("ResponsePlaylistJson.txt", "RemovedNextLines.txt")
-    create_playlist_file("RemovedNextLines.txt", "Playlist.txt")
+    remove_newlines("ResponsePlaylistJson.txt", "Playlist.txt")
     download_song('Playlist.txt')
     verify_downloads('songs_downloaded.txt')
 
