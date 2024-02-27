@@ -1,5 +1,5 @@
 import requests, json, urllib.parse, os
-from mutagen.mp3 import MP3, MP3Cover
+from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, TIT2, TIT3, TALB, TPE1, TPE2, TPE3, TPUB, TCOP,TCOM, TEXT, TYER, TDRC, TLAN, TSIZ, TIME, TDAT, TDRC, TIPL, COMM, APIC
 
 TOTAL_SONGS = 1
@@ -84,29 +84,29 @@ def download_song(input_file):
     songs_downloaded = []
     songs_not_downloaded = []
 
-    for item in playlist_data['playlist']:
+    for song in playlist_data['list']:
         try: 
-            cover_art = requests.get(item['image'])
+            cover_art = requests.get(song['image'].replace('150x150','500x500'))
             
-            auth_url = get_auth_url(item['encrypted_media_url'], item['320kbps'])
+            auth_url = get_auth_url(song.get('more_info', {}).get('encrypted_media_url', ''), song.get('more_info', {}).get('320kbps', ''))
 
             auth_response = requests.get(auth_url)
             if auth_response.status_code == 200:
-                file_name = generate_unique_file_name(item['title'],songs_downloaded)
+                file_name = generate_unique_file_name(song['title'], songs_downloaded)
                 with open(file_name,'wb') as mp3:
                     mp3.write(auth_response.content)
 
                 mp3_file = MP3(file_name, ID3=ID3)
-                write_metadata(cover_art.content, item , mp3_file)
+                write_metadata(cover_art.content, song , mp3_file)
                 songs_downloaded.append(file_name + '\n')
                 count = count + 1
                 print('File name', file_name, 'Count', count)
             else:
-                songs_not_downloaded.append(item['title'] + '\n')
+                songs_not_downloaded.append(song['title'] + '\n')
                 print("Error fetching data from auth URL:", auth_response.status_code)
         except:
-            print('could not download this song', item['title'])
-            songs_not_downloaded.append(item['title'] + '\n' )
+            print('could not download this song', song['title'])
+            songs_not_downloaded.append(song['title'] + '\n' )
 
     if count == TOTAL_SONGS:
         print("\nDownloading Songs Successful. Total songs downloaded", count)
@@ -179,9 +179,9 @@ def main():
     print("Request URL is " + request_url)
     response = requests.get(request_url) # get the playlist
     save_file(response.text, "ResponsePlaylistJson.txt") 
-    remove_newlines("ResponsePlaylistJson.txt", "Playlist.txt")
-    download_song('Playlist.txt')
-    verify_downloads('songs_downloaded.txt')
+    remove_newlines("ResponsePlaylistJson.txt", "Playlist.json")
+    download_song('Playlist.json')
+    # verify_downloads('songs_downloaded.txt')
 
 if __name__ == "__main__":
     main()
