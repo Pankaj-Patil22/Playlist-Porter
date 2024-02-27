@@ -1,7 +1,36 @@
 import requests, json, urllib.parse, os
-from mutagen.mp4 import MP4, MP4Cover
+from mutagen.mp3 import MP3, MP3Cover
+from mutagen.id3 import ID3, TIT2, TIT3, TALB, TPE1, TPE2, TPE3, TPUB, TCOP,TCOM, TEXT, TYER, TDRC, TLAN, TSIZ, TIME, TDAT, TDRC, TIPL, COMM, APIC
 
 TOTAL_SONGS = 1
+
+def sanitize_name(name):
+    unwanted_chars = r'\/:*?"<>|'  # Unwanted characters to remove
+    for char in unwanted_chars:
+        name = name.replace(char, '')
+    return name
+
+def fix_file_name(name):
+    quotes = ['\u2019','&quot;','&#039;', '\u2018']
+    for quote in quotes:
+        if quote in name:
+            name = name.replace(quote, "'")
+    return name
+
+def get_song_name(name):
+    file_name = fix_file_name(name+'.mp3')
+    file_name = sanitize_name(file_name)
+    return 'songs/'+file_name
+
+def generate_unique_file_name(base_name, existing_file_names):
+    suffix = 1
+    for file_name in existing_file_names:
+        if base_name in file_name:
+            base_name = base_name + str(suffix)
+            suffix += 1
+    
+    return get_song_name(base_name)
+
 
 # only save the important data
 def create_playlist_file(input_file_name, output_file_name):
@@ -21,6 +50,7 @@ def create_playlist_file(input_file_name, output_file_name):
         label = item.get('more_info', {}).get('label', '')
         bitrate = item.get('more_info', {}).get('320kbps', '')
         encrypted_media_url = item.get('more_info', {}).get('encrypted_media_url', '')
+        language = item.get('language', '')
 
         record = {
             'title': title,
@@ -31,7 +61,8 @@ def create_playlist_file(input_file_name, output_file_name):
             'album': album,
             'label': label,
             '320kbps': bitrate,
-            'encrypted_media_url': encrypted_media_url
+            'encrypted_media_url': encrypted_media_url,
+            'language': language
         }
         records["playlist"].append(record)
 
@@ -39,15 +70,33 @@ def create_playlist_file(input_file_name, output_file_name):
     print("\nImportant Information Saved")
 
 # Add mp4_file to the MP4 file
-def write_metadata(cover_art, primary_artists, featured_artists, artists, album, label, title, mp4_file):
-    mp4_file['\xa9ART'] = primary_artists  # Primary artist
-    mp4_file['aART'] = featured_artists  # Featured artist
-    mp4_file['\xa9grp'] = label # Add label information
-    mp4_file['\xa9wrt'] = primary_artists + ', '+ featured_artists + ', ' + artists  # All artists
-    mp4_file['covr'] = [MP4Cover(cover_art)]
-    mp4_file['\xa9alb'] = album # Add album info
-    mp4_file['\xa9nam'] = title # Add title
-    mp4_file.save()
+def write_metadata(cover_art, primary_artists, featured_artists, artists, album, label, title, language, mp3_file):
+    mp3_file.tags.add(
+        APIC(
+            encoding=3,  # utf-8
+            mime='image/jpeg',  # image/jpeg or image/png
+            type=3,  # 3 is for the cover image
+            desc=u'Cover',
+            data=cover_art
+        )
+    )
+    mp3_file.tags.add(TIT2(encoding=3, text = title))
+    mp3_file.tags.add(TALB(encoding=3, text = album))
+    mp3_file.tags.add(TPE1(encoding=3, text = primary_artists))
+    mp3_file.tags.add(TPE2(encoding=3, text = featured_artists))
+    mp3_file.tags.add(TPE3(encoding=3, text = artists))
+    mp3_file.tags.add(TPUB(encoding=3, text= label))
+    mp3_file.tags.add(COMM(encoding=3, lang = language, text= primary_artists + ', ' + featured_artists + ', ' + artists ))
+    mp3_file.save()
+    
+    # mp4_file['\xa9ART'] = primary_artists  # Primary artist
+    # mp4_file['aART'] = featured_artists  # Featured artist
+    # mp4_file['\xa9grp'] = label # Add label information
+    # mp4_file['\xa9wrt'] = primary_artists + ', '+ featured_artists + ', ' + artists  # All artists
+    # mp4_file['covr'] = [MP4Cover(cover_art)]
+    # mp4_file['\xa9alb'] = album # Add album info
+    # mp4_file['\xa9nam'] = title # Add title
+    # mp4_file.save()
 
 # Get the auth url
 def get_auth_url(encrypted_media_url, is320kbps):
@@ -63,33 +112,6 @@ def get_auth_url(encrypted_media_url, is320kbps):
         return auth_url.replace('\\','')
     else: 
         print("Some error occured while getting auth_url")
-
-def sanitize_name(name):
-    unwanted_chars = r'\/:*?"<>|'  # Unwanted characters to remove
-    for char in unwanted_chars:
-        name = name.replace(char, '')
-    return name
-
-def fix_file_name(name):
-    quotes = ['\u2019','&quot;','&#039;', '\u2018']
-    for quote in quotes:
-        if quote in name:
-            name = name.replace(quote, "'")
-    return name
-
-def get_song_name(name):
-    file_name = fix_file_name(name+'.mp4')
-    file_name = sanitize_name(file_name)
-    return 'songs/'+file_name
-
-def generate_unique_file_name(base_name, existing_file_names):
-    suffix = 1
-    for file_name in existing_file_names:
-        if base_name in file_name:
-            base_name = base_name + str(suffix)
-            suffix += 1
-    
-    return get_song_name(base_name)
 
 def download_song(input_file):
     with open(input_file, 'r') as file:
@@ -108,11 +130,11 @@ def download_song(input_file):
             auth_response = requests.get(auth_url)
             if auth_response.status_code == 200:
                 file_name = generate_unique_file_name(item['title'],songs_downloaded)
-                with open(file_name,'wb') as mp4:
-                    mp4.write(auth_response.content)
+                with open(file_name,'wb') as mp3:
+                    mp3.write(auth_response.content)
 
-                mp4_file = MP4(file_name)
-                write_metadata(cover_art.content, item['primary_artists'], item['featured_artists'], item['artists'], item['album'], item['label'], item['title'], mp4_file)
+                mp3_file = MP3(file_name, ID3=ID3)
+                write_metadata(cover_art.content, item['primary_artists'], item['featured_artists'], item['artists'], item['album'], item['label'], item['title'], item['language'], mp3_file)
                 songs_downloaded.append(file_name + '\n')
                 count = count + 1
                 print('File name', file_name, 'Count', count)
