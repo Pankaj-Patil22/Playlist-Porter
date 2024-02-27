@@ -31,36 +31,6 @@ def generate_unique_file_name(base_name, existing_file_names):
     
     return get_song_name(base_name)
 
-
-# Add mp4_file to the MP4 file
-def write_metadata(cover_art, primary_artists, featured_artists, artists, album, label, title, language, mp3_file):
-    mp3_file.tags.add(
-        APIC(
-            encoding=3,  # utf-8
-            mime='image/jpeg',  # image/jpeg or image/png
-            type=3,  # 3 is for the cover image
-            desc=u'Cover',
-            data=cover_art
-        )
-    )
-    mp3_file.tags.add(TIT2(encoding=3, text = title))
-    mp3_file.tags.add(TALB(encoding=3, text = album))
-    mp3_file.tags.add(TPE1(encoding=3, text = primary_artists))
-    mp3_file.tags.add(TPE2(encoding=3, text = featured_artists))
-    mp3_file.tags.add(TPE3(encoding=3, text = artists))
-    mp3_file.tags.add(TPUB(encoding=3, text= label))
-    mp3_file.tags.add(COMM(encoding=3, lang = language, text= primary_artists + ', ' + featured_artists + ', ' + artists ))
-    mp3_file.save()
-    
-    # mp4_file['\xa9ART'] = primary_artists  # Primary artist
-    # mp4_file['aART'] = featured_artists  # Featured artist
-    # mp4_file['\xa9grp'] = label # Add label information
-    # mp4_file['\xa9wrt'] = primary_artists + ', '+ featured_artists + ', ' + artists  # All artists
-    # mp4_file['covr'] = [MP4Cover(cover_art)]
-    # mp4_file['\xa9alb'] = album # Add album info
-    # mp4_file['\xa9nam'] = title # Add title
-    # mp4_file.save()
-
 # Get the auth url
 def get_auth_url(encrypted_media_url, is320kbps):
     bitrate = '320' if is320kbps else '128'
@@ -75,6 +45,36 @@ def get_auth_url(encrypted_media_url, is320kbps):
         return auth_url.replace('\\','')
     else: 
         print("Some error occured while getting auth_url")
+
+
+# Add mp4_file to the MP4 file
+def write_metadata(cover_art, item, mp3_file):
+    mp3_file.tags.add(
+        APIC(
+            encoding=3,  # utf-8
+            mime='image/jpeg',  # image/jpeg or image/png
+            type=3,  # 3 is for the cover image
+            desc=u'Cover',
+            data=cover_art
+        )
+    )
+    mp3_file.tags.add(TIT2(encoding=3, text = item["title"]))
+    mp3_file.tags.add(TALB(encoding=3, text = item["album"]))
+    mp3_file.tags.add(TPE1(encoding=3, text = item["primary_artists"]))
+    mp3_file.tags.add(TPE2(encoding=3, text = item["featured_artists"]))
+    mp3_file.tags.add(TPE3(encoding=3, text = item["artists"]))
+    mp3_file.tags.add(TPUB(encoding=3, text = item["label"]))
+    mp3_file.tags.add(COMM(encoding=3, lang = item["language"], text= item["primary_artists"] + ', ' + item["featured_artists"] + ', ' + item["artists"] ))
+    mp3_file.save()
+    
+    # mp4_file['\xa9ART'] = primary_artists  # Primary artist
+    # mp4_file['aART'] = featured_artists  # Featured artist
+    # mp4_file['\xa9grp'] = label # Add label information
+    # mp4_file['\xa9wrt'] = primary_artists + ', '+ featured_artists + ', ' + artists  # All artists
+    # mp4_file['covr'] = [MP4Cover(cover_art)]
+    # mp4_file['\xa9alb'] = album # Add album info
+    # mp4_file['\xa9nam'] = title # Add title
+    # mp4_file.save()
 
 def download_song(input_file):
     with open(input_file, 'r') as file:
@@ -97,7 +97,7 @@ def download_song(input_file):
                     mp3.write(auth_response.content)
 
                 mp3_file = MP3(file_name, ID3=ID3)
-                write_metadata(cover_art.content, item['primary_artists'], item['featured_artists'], item['artists'], item['album'], item['label'], item['title'], item['language'], mp3_file)
+                write_metadata(cover_art.content, item , mp3_file)
                 songs_downloaded.append(file_name + '\n')
                 count = count + 1
                 print('File name', file_name, 'Count', count)
